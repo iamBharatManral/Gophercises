@@ -14,24 +14,45 @@ func main() {
 	filename := flag.String("file", "problems.csv", "CSV file containing problems")
 	flag.Parse()
 
-	file, err := os.Open(*filename)
+	reader, err := createCSVReader(*filename)
+
 	if err != nil {
 		fmt.Printf("Error reading file: %s\n", err.Error())
 		os.Exit(1)
 	}
 
-	reader := csv.NewReader(file)
+	totalQuestions, correctAnswers := askQuestions(readProblems(reader))
 
-	correctAnswers := 0
-	count := 1
+	fmt.Printf("\nYour score is: %d/%d\n", correctAnswers, totalQuestions)
+}
 
+func createCSVReader(filename string) (*csv.Reader, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading file: %s\n", err.Error())
+	}
+
+	return csv.NewReader(file), nil
+}
+
+func readProblems(r *csv.Reader) [][]string {
+	var problems [][]string
 	for {
-		record, err := reader.Read()
+		record, err := r.Read()
 		if err == io.EOF {
 			break
 		}
-		question := fmt.Sprintf("Question: %s", record[0])
-		correctAnswer := record[1]
+		problems = append(problems, record)
+	}
+	return problems
+}
+
+func askQuestions(problems [][]string) (int, int) {
+	count := 1
+	correctAnswers := 0
+	for _, p := range problems {
+		question := fmt.Sprintf("Question: %s", p[0])
+		correctAnswer := p[1]
 		var userAnswer string
 		fmt.Printf("%d. %s: ", count, question)
 		count++
@@ -40,6 +61,5 @@ func main() {
 			correctAnswers++
 		}
 	}
-
-	fmt.Printf("Your score is: %d/%d\n", correctAnswers, count)
+	return count, correctAnswers
 }
