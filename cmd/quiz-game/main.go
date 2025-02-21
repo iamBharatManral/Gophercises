@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
 )
 
 func main() {
 	fmt.Println("Welcome to QuizGame!\n")
 
-	filename := flag.String("file", "problems.csv", "CSV file containing problems")
+	filename := flag.String("file", "problems.csv", "CSV file containing problems in format (question,answer)")
+	timeout := flag.Int("timeout", 30, "Timeout period for quiz")
+
 	flag.Parse()
 
 	reader, err := createCSVReader(*filename)
@@ -20,10 +24,10 @@ func main() {
 		fmt.Printf("Error reading file: %s\n", err.Error())
 		os.Exit(1)
 	}
+	questions := readProblems(reader)
+	correctAnswers := askQuestions(questions, *timeout)
 
-	totalQuestions, correctAnswers := askQuestions(readProblems(reader))
-
-	fmt.Printf("\nYour score is: %d/%d\n", correctAnswers, totalQuestions)
+	fmt.Printf("\nYour score is: %d/%d\n", correctAnswers, len(questions))
 }
 
 func createCSVReader(filename string) (*csv.Reader, error) {
@@ -47,19 +51,31 @@ func readProblems(r *csv.Reader) [][]string {
 	return problems
 }
 
-func askQuestions(problems [][]string) (int, int) {
+func askQuestions(problems [][]string, timeout int) int {
+	timer := time.NewTimer(time.Duration(timeout) * time.Second)
 	count := 1
 	correctAnswers := 0
+	answerCh := make(chan string)
+problems:
 	for _, p := range problems {
 		question := fmt.Sprintf("Question: %s", p[0])
-		correctAnswer := p[1]
-		var userAnswer string
+		correctAnswer := strings.TrimSpace(p[1])
 		fmt.Printf("%d. %s: ", count, question)
 		count++
-		fmt.Scanf("%s", &userAnswer)
-		if correctAnswer == userAnswer {
-			correctAnswers++
+		go func() {
+			var answer string
+			fmt.Scanf("%s", &answer)
+			answerCh <- answer
+		}()
+		select {
+		case <-timer.C:
+			fmt.Println("\nTime's up!")
+			break problems
+		case answer := <-answerCh:
+			if correctAnswer == strings.TrimSpace(answer) {
+				correctAnswers++
+			}
 		}
 	}
-	return count, correctAnswers
+	return correctAnswers
 }
